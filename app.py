@@ -1,4 +1,3 @@
-import os
 from flask import Flask, request, abort
 
 from linebot import (
@@ -7,42 +6,54 @@ from linebot import (
 from linebot.exceptions import (
     InvalidSignatureError
 )
-from linebot.models import *
+from linebot.models import (
+    MessageEvent, TextMessage, TextSendMessage,
+)
 
 app = Flask(__name__)
 
-# Channel Access Token
-line_bot_api = LineBotApi(
-    '/0/E8vZcwZlnPq0YU0YTrdpQNtyFpPLKmenS+mFGvYSjxmlH1G1Akh9vaYTHv5/vDZCkOokWmaH9wSnmOrXAuv7LCGs8UFeoKCq05RWVn4LxNU7f0pqpdfdch3O34rxZWaWqYzN3EJccJXMZGGBm/AdB04t89/1O/w1cDnyilFU=')
-# Channel Secret
-handler = WebhookHandler('21756ddf5824ec218c8775963ab913dd')
+# get channel_secret and channel_access_token from your environment variable
+channel_secret = os.getenv('01a8b37caee6c4120c280268d1d1e8c8', None)
+channel_access_token = os.getenv(
+    'Wv/jOnyD9Zd/v0RMEH6eMn4SITP0E0yDcuEicx4sdCMJSNCs24lpnXA8zxn8OeAg/uagz0XMhdvJThPLYRB9LOTwO+x/U1KJuhfxA9UQZqSYTCp8bb+m2NVYQrla2xSsrMRe8LnMs+YXb8LK8bHWmwdB04t89/1O/w1cDnyilFU=', None)
+if channel_secret is None or channel_access_token is None:
+    print('Specify LINE_CHANNEL_SECRET and LINE_CHANNEL_ACCESS_TOKEN as environment variables.')
+    sys.exit(1)
 
-# 監聽所有來自 /callback 的 Post Request
+line_bot_api = LineBotApi(channel_access_token)
+handler = WebhookHandler(channel_secret)
+
+# 此為 Webhook callback endpoint
 
 
 @app.route("/callback", methods=['POST'])
 def callback():
     # get X-Line-Signature header value
     signature = request.headers['X-Line-Signature']
+
     # get request body as text
     body = request.get_data(as_text=True)
     app.logger.info("Request body: " + body)
-    # handle webhook body
+
+    # handle webhook body（負責）
     try:
         handler.handle(body, signature)
     except InvalidSignatureError:
+        print("Invalid signature. Please check your channel access token/channel secret.")
         abort(400)
+
     return 'OK'
 
-# 處理訊息
+# decorator 負責判斷 event 為 MessageEvent 實例，event.message 為 TextMessage 實例。所以此為處理 TextMessage 的 handler
 
 
 @handler.add(MessageEvent, message=TextMessage)
 def handle_message(event):
-    message = TextSendMessage(text=event.message.text)
-    line_bot_api.reply_message(event.reply_token, message)
+    # 決定要回傳什麼 Component 到 Channel
+    line_bot_api.reply_message(
+        event.reply_token,
+        TextSendMessage(text=event.message.text))
 
 
-if __name__ == "__main__":
-    port = int(os.environ.get('PORT', 5000))
-    app.run(host='0.0.0.0', port=port)
+if __name__ == '__main__':
+    app.run()
